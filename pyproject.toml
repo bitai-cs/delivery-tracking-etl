@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "DocumentTrackingETL"
+version = "0.1.0"
+description = "DocumentTracking ETL"
+authors = ["Viko Bastidas <vico.bastidas@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+mysql-connector-python = "9.1.0"
+
+[tool.poetry.scripts]
+start_importer = "dataimporter.importer:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
