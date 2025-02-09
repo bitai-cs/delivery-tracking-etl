@@ -1,16 +1,18 @@
 [tool.poetry]
-name = "DocumentTrackingETL"
+name = "delivery_tracking_etl"
 version = "0.1.0"
-description = "DocumentTracking ETL"
+description = "Data Importer ETL"
 authors = ["Viko Bastidas <vico.bastidas@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
 mysql-connector-python = "9.1.0"
+python-dotenv = "^1.0.1"
+pytz = "^2025.1"
 
 [tool.poetry.scripts]
-start_importer = "dataimporter.importer:main"
+data_importer = "delivery_tracking_etl.data_importer:main"
 
 [build-system]
 requires = ["poetry-core"]
