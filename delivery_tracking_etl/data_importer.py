@@ -1,36 +1,20 @@
+from delivery_tracking_etl.config_db import SRC_DB_CONNECTION_CONFIG, TRGT_DB_CONNECTION_CONFIG
+from delivery_tracking_etl.config_dt import DT_CONFIG
+from datetime import datetime, timezone
+import pytz
 import mysql.connector
-from datetime import datetime, timedelta
-
-# Database configurations
-TITANICSOFT_CONFIG = {
-    'host': 'localhost',
-    'user': 'titanicsoft_admin',
-    'password': 'titanicsoft_admin',
-    'database': 'titanicsoft'
-}
-
-# CTL_DOC_CONFIG = {
-#     'host': 'localhost',
-#     'user': 'ctldoc_admin',
-#     'password': 'ctldoc_admin',
-#     'database': 'ctldoc'
-# }
-CTL_DOC_CONFIG = {
-    'host': '159.203.97.223',
-    'user': 'ctldoc_admin',
-    'password': 'ctldoc_admin',
-    'database': 'ctldoc'
-}
 
 def extract_data():
-    """Extract data from TABLE_A in titanicsoft database."""
-    connection = mysql.connector.connect(**TITANICSOFT_CONFIG)
-    cursor = connection.cursor(dictionary=True)
-    
     # Calculate the filter time
-    #current_time = datetime.now()
-    # filter_time = current_time - timedelta(minutes=5)
-    filter_time = "2024-01-03";
+    current_datetime = datetime.now(timezone.utc)
+    print(f"Current time: {current_datetime}")
+    
+    # Definir la zona horaria de Lima, Perú
+    lima_timezone = pytz.timezone(DT_CONFIG['TIMEZONE'])
+    
+    # Convertir la hora UTC a la hora de Lima
+    lima_datetime = current_datetime.replace(tzinfo=pytz.utc).astimezone(lima_timezone)
+    print(f"Current time in Lima: {lima_datetime}")
     
     # SQL query to fetch data
     query = """
@@ -81,8 +65,16 @@ def extract_data():
     WHERE ma.fecha = %s;
     """
     
+    # Connect to the source database
+    connection = mysql.connector.connect(**SRC_DB_CONNECTION_CONFIG)
+    cursor = connection.cursor(dictionary=True)
+    
+    fecha_filter = lima_datetime.date().strftime('%Y-%m-%d')
+    print(f"Filter fecha value: {fecha_filter}")
+    
     print("Try to extract data from source...")
-    cursor.execute(query, (filter_time,))
+    cursor.execute(query, (fecha_filter,))
+    # cursor.execute(query, ('2025-02-07',))
     rows = cursor.fetchall()
     
     cursor.close()
@@ -90,8 +82,7 @@ def extract_data():
     return rows
 
 def dump_data_to_table_b(data):
-    """Insert data into TABLE_B in ctldoc database, avoiding duplicates."""
-    connection = mysql.connector.connect(**CTL_DOC_CONFIG)
+    connection = mysql.connector.connect(**TRGT_DB_CONNECTION_CONFIG)
     cursor = connection.cursor()
     
     # Insert data into TABLE_B if it doesn't exist
