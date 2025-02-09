@@ -4,19 +4,20 @@ from datetime import datetime, timezone
 import pytz
 import mysql.connector
 
-def extract_data():
-    # Calculate the filter time
-    current_datetime = datetime.now(timezone.utc)
-    print(f"Current time: {current_datetime}")
+def extract_data_from_source_table():
+    # Getting the current datetime in UTC
+    utc_datetime = datetime.now(timezone.utc)
+    print(f"Current UTC time: {utc_datetime}")
     
-    # Definir la zona horaria de Lima, Perú
-    lima_timezone = pytz.timezone(DT_CONFIG['TIMEZONE'])
+    # Getting the local timezone
+    local_timezone = pytz.timezone(DT_CONFIG['TIMEZONE'])
+    print(f"Local timezone: {local_timezone}")
     
-    # Convertir la hora UTC a la hora de Lima
-    lima_datetime = current_datetime.replace(tzinfo=pytz.utc).astimezone(lima_timezone)
-    print(f"Current time in Lima: {lima_datetime}")
+    # Converting the UTC datetime to local datetime
+    local_datetime = utc_datetime.replace(tzinfo=pytz.utc).astimezone(local_timezone)
+    print(f"Current local time: {local_datetime}")
     
-    # SQL query to fetch data
+    # Query to extract data from source table
     query = """
     SELECT DISTINCT orden.id AS orden_id,
 	orden.fecha AS orden_fecha ,
@@ -66,61 +67,72 @@ def extract_data():
     """
     
     # Connect to the source database
+    print("Connecting to source database...")
     connection = mysql.connector.connect(**SRC_DB_CONNECTION_CONFIG)
     cursor = connection.cursor(dictionary=True)
     
-    fecha_filter = lima_datetime.date().strftime('%Y-%m-%d')
-    print(f"Filter fecha value: {fecha_filter}")
+    # Filter value
+    fecha_filter = local_datetime.date().strftime('%Y-%m-%d')
+    print(f"Filter value: {fecha_filter}")
+
+    print("Extracting data from source table...")
+    # cursor.execute(query, (fecha_filter,))
+    cursor.execute(query, ('2025-02-07',))
     
-    print("Try to extract data from source...")
-    cursor.execute(query, (fecha_filter,))
-    # cursor.execute(query, ('2025-02-07',))
+    # Fetch all rows
+    print("Fetching all rows...")
     rows = cursor.fetchall()
     
     cursor.close()
     connection.close()
     return rows
 
-def dump_data_to_table_b(data):
+def dump_data_into_target_table(data):
+    # Connect to the target database
+    print("Connecting to target database...")
     connection = mysql.connector.connect(**TRGT_DB_CONNECTION_CONFIG)
     cursor = connection.cursor()
     
     # Insert data into TABLE_B if it doesn't exist
     for row in data:
+        # UNIQUE KEY: orden_id, transportista_guia
         identifier1 = row['orden_id']  # Assuming 'id' is the unique identifier column
         identifier2 = row['transportista_guia']  # Assuming 'id' is the unique identifier column
-        
-        # Check if the record already exists
-        check_query = "SELECT COUNT(*) FROM seguimiento_documento WHERE orden_id = %s AND transportista_guia=%s;"
-        cursor.execute(check_query, (identifier1,identifier2,))
-        if cursor.fetchone()[0] == 0:
-            # Insert the record if it doesn't exist
-            print(f"Trying to insert record with identifier1={identifier1} and identifier2={identifier2} into seguimiento_documento...")
-            columns = ', '.join(row.keys())
-            placeholders = ', '.join(['%s'] * len(row))
-            insert_query = f"INSERT INTO seguimiento_documento ({columns}) VALUES ({placeholders})"
-            cursor.execute(insert_query, tuple(row.values()))
-        else:
-            print(f"Record with identifier1={identifier1} and identifier2={identifier2} already exists in seguimiento_documento.")
-    
+        print(f"Inserting (or updateting if exists) record with KEY({identifier1} | {identifier2})...")                
+        # Getting column names
+        columns = row.keys()
+        # Getting column values
+        placeholders = ', '.join(['%s'] * len(columns))
+        # Building the query template
+        query = f"""
+        INSERT INTO seguimiento_documento ({', '.join(columns)}) VALUES ({placeholders})
+        ON DUPLICATE KEY UPDATE
+        {', '.join([f"{column}=VALUES({column})" for column in columns])};
+        """
+        # Inserting or updating data into target table
+        cursor.execute(query, tuple(row.values()))
+
+    # Commit the transaction            
     connection.commit()
+    # Close the cursor and connection
     cursor.close()
+    # Close the connection
     connection.close()
 
 def main():
     try:
-        # Step 1: Extract data from TABLE_A
-        print("Extracting data from source...")
-        data = extract_data()
-        print(f"Extracted {len(data)} rows from source.")
+        # Step 1: Extract data from source table
+        print("Extracting data from source table...")
+        data = extract_data_from_source_table()
+        print(f"Extracted {len(data)} rows from source table.")
 
-        # Step 2: Dump data into TABLE_B
+        # Step 2: Dump data into target table
         if data:
-            print("Dumping data into seguimiento_documento...")
-            dump_data_to_table_b(data)
-            print("Data successfully dumped into seguimiento_documento.")
+            print("Dumping data into target table...")
+            dump_data_into_target_table(data)
+            print("Data successfully dumped into target table.")
         else:
-            print("No data to dump into seguimiento_documento.")
+            print("No data to dump into target table.")
 
     except mysql.connector.Error as e:
         print(f"MySQL Error: {e}")
