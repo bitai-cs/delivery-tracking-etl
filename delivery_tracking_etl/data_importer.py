@@ -1,6 +1,6 @@
 from delivery_tracking_etl.config_db import SRC_DB_CONNECTION_CONFIG, TRGT_DB_CONNECTION_CONFIG
 from delivery_tracking_etl.config_dt import DT_CONFIG
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import pytz
 import mysql.connector
 
@@ -16,6 +16,9 @@ def extract_data_from_source_table():
     # Converting the UTC datetime to local datetime
     local_datetime = utc_datetime.replace(tzinfo=pytz.utc).astimezone(local_timezone)
     print(f"Current local time: {local_datetime}")
+    
+    # Getting the date with margin
+    date_with_margin = local_datetime - timedelta(days=DT_CONFIG['DAYSOFMARGIN'])
     
     # Query to extract data from source table
     query = """
@@ -50,20 +53,23 @@ def extract_data_from_source_table():
 	orden orden
 	INNER JOIN socio cr ON cr.id = orden.id_remitente
 	LEFT JOIN socio cd ON cd.id = orden.id_destinatario
-	LEFT JOIN socio ct ON ct.id = orden.id_tercero
+	-- LEFT JOIN socio ct ON ct.id = orden.id_tercero
 	LEFT JOIN lugar lo ON lo.id = orden.id_lugar_origen
 	LEFT JOIN lugar ld ON ld.id = orden.id_lugar_destino
 	LEFT JOIN tipo_entrega te ON te.id = orden.id_tipo_entrega
 	LEFT JOIN factura f ON f.id = orden.id_factura
-	INNER JOIN guia_transportista_orden guio ON guio.id_orden = orden.id
-	INNER JOIN guia_transportista guit ON guit.id = guio.id_guia_transportista
-	INNER JOIN manifiesto ma ON ma.id = guit.id_manifiesto
-	INNER JOIN personal per ON per.id = guit.id_conductor
-	INNER JOIN vehiculo vi ON vi.id = guit.id_vehiculo
-	/*inner join desembarque_guia dgui on dgui.id_guia_transportista=guit.id*/
-	INNER JOIN desembarque des ON des.id = guit.id_desembarque
+ 
+	LEFT JOIN guia_transportista_orden guio ON guio.id_orden = orden.id
+	LEFT JOIN guia_transportista guit ON guit.id = guio.id_guia_transportista
+	LEFT JOIN manifiesto ma ON ma.id = guit.id_manifiesto
+	LEFT JOIN personal per ON per.id = guit.id_conductor
+	LEFT JOIN vehiculo vi ON vi.id = guit.id_vehiculo
+	-- inner join desembarque_guia dgui on dgui.id_guia_transportista=guit.id
+	LEFT JOIN desembarque des ON des.id = guit.id_desembarque
+ 
 	LEFT JOIN orden_pago orp ON orp.id_orden = guio.id_orden
-    WHERE ma.fecha = %s;
+    WHERE orden.fecha >= %s AND orden.fecha <= %s
+    AND NOT guit.id IS NULL;
     """
     
     # Connect to the source database
@@ -72,12 +78,16 @@ def extract_data_from_source_table():
     cursor = connection.cursor(dictionary=True)
     
     # Filter value
-    fecha_filter = local_datetime.date().strftime('%Y-%m-%d')
-    print(f"Filter value: {fecha_filter}")
+    fecha_filter_1 = date_with_margin.date().strftime('%Y-%m-%d')
+    print(f"Filter value: {fecha_filter_1}")
+    
+    # Filter value
+    fecha_filter_2 = local_datetime.date().strftime('%Y-%m-%d')
+    print(f"Filter value: {fecha_filter_2}")
 
     print("Extracting data from source table...")
-    # cursor.execute(query, (fecha_filter,))
-    cursor.execute(query, ('2025-02-07',))
+    cursor.execute(query, (fecha_filter_1, fecha_filter_2,))
+    # cursor.execute(query, ('2025-02-07',))
     
     # Fetch all rows
     print("Fetching all rows...")

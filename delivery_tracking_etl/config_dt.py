@@ -6,5 +6,6 @@ load_dotenv()
 
 # Configuration for titanicsoft database
 DT_CONFIG = {
-    'TIMEZONE': os.getenv('DT_TIMEZONE')
+    'TIMEZONE': os.getenv('DT_TIMEZONE'),
+    'DAYSOFMARGIN': int(os.getenv('DT_DAYSOFMARGIN', 5))
 }
