@@ -48,7 +48,8 @@ def extract_data_from_source_table():
 	) estado_pago,
 	orp.cobrador,
 	CONCAT(f.serie, "-", f.numero) AS factura_nro,
-	f.total_importe AS factura_monto
+	f.total_importe AS factura_monto,
+    %s AS etl_utcdt_update
     FROM
 	orden orden
 	INNER JOIN socio cr ON cr.id = orden.id_remitente
@@ -77,17 +78,20 @@ def extract_data_from_source_table():
     connection = mysql.connector.connect(**SRC_DB_CONNECTION_CONFIG)
     cursor = connection.cursor(dictionary=True)
     
+    #Field value
+    iso_format = local_datetime.isoformat()
+    print(f"Field value: {iso_format}")
+    
     # Filter value
     fecha_filter_1 = date_with_margin.date().strftime('%Y-%m-%d')
-    print(f"Filter value: {fecha_filter_1}")
+    print(f"Filter1 value: {fecha_filter_1}")
     
     # Filter value
     fecha_filter_2 = local_datetime.date().strftime('%Y-%m-%d')
-    print(f"Filter value: {fecha_filter_2}")
+    print(f"Filter2 value: {fecha_filter_2}")
 
     print("Extracting data from source table...")
-    cursor.execute(query, (fecha_filter_1, fecha_filter_2,))
-    # cursor.execute(query, ('2025-02-07',))
+    cursor.execute(query, (iso_format, fecha_filter_1, fecha_filter_2,))
     
     # Fetch all rows
     print("Fetching all rows...")
