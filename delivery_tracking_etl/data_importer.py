@@ -22,55 +22,71 @@ def extract_data_from_source_table():
     
     # Query to extract data from source table
     query = """
-    SELECT DISTINCT orden.id AS orden_id,
-	orden.fecha AS orden_fecha ,
-	ma.fecha AS embarque_fecha,
+    SELECT DISTINCT 
+	orden.id AS orden_id,
+	orden.fecha AS orden_fecha ,	
 	CONCAT(orden.serie, "-", orden.numero) AS orden_servicio,
-	orp.medio_pago AS ordenpago_forma,
-	CONCAT(guit.serie, "-", guit.numero) AS transportista_guia,
-	CONCAT(ma.serie, "-", ma.numero) AS manifiesto_nro,
-	lo.nombre AS origen,
-	cr.razon_social AS remitente,
-	ld.nombre AS destino,
-	cd.razon_social AS destinatario,
-	te.nombre AS punto_entrega,
-	orden.total_cantidad AS cantidad,
-	orden.total_peso AS peso,
-	orden.total_importe,
-	CONCAT(per.nombre, "-", per.apellido) AS conductor,
-	vi.placa AS vehiculo_placa,
-	CONCAT(des.serie, "-", des.numero) AS desembarque,
-	des.fecha AS fecha_desembarque,
-	orden.fecha_entregado,
-	0 estado_entrega,
-	(
-		CASE WHEN orden.fl_pagado = '1' THEN 'Pagado' ELSE 'No pagado' END
-	) estado_pago,
-	orp.cobrador,
-	CONCAT(f.serie, "-", f.numero) AS factura_nro,
-	f.total_importe AS factura_monto,
+	
+	CONCAT(GuiaTransp.serie, "-", GuiaTransp.numero) AS transportista_guia,
+	
+	CONCAT(Manif.serie, "-", Manif.numero) AS manifiesto_nro,	
+	Manif.fecha AS manifiesto_fecha,
+	
+	LugarOri.nombre AS orden_origen,
+	SocioRemit.razon_social AS remitente_razonsocial,
+	SocioRemit.numero_documento AS remitente_nrodoc /* NEW */,
+	CASE SocioRemit.id_documento WHEN 1 THEN 'DNI' WHEN 2 THEN 'RUC' ELSE '???' END AS remitente_tipodoc /* NEW */,
+	orden.guia_remitente AS remitente_guia,
+	
+	LugarDest.nombre AS orden_destino,
+	SocioDest.razon_social AS destinatario_razonsocial,
+	SocioDest.numero_documento AS destinatario_nrodoc /* NEW */,
+	CASE SocioDest.id_documento WHEN 1 THEN 'DNI' WHEN 2 THEN 'RUC' ELSE '???' END AS destinatario_tipodoc /* NEW */,
+	
+	TipoEntrega.nombre AS orden_puntoentrega,
+	orden.direccion_entrega AS orden_direccionentrega,
+	
+	orden.total_cantidad AS orden_totalcantidad,
+	orden.total_peso AS orden_totalpeso,
+	orden.total_importe AS orden_totalimporte,
+	
+	CONCAT(Person.nombre, "-", Person.apellido) AS vehiculo_conductor,
+	Vehiculo.placa AS vehiculo_placa,
+	
+	CONCAT(Desembarque.serie, "-", Desembarque.numero) AS desembarque,
+	Desembarque.fecha AS desembarque_fecha,
+		
+	orden.fl_entregado AS orden_flagentregado,
+	orden.fecha_entregado AS orden_fechaentregado,
+		
+	CASE WHEN orden.fl_pagado = '1' THEN 'Pagado' ELSE 'No pagado' END AS orden_estadopago,
+	OrdenPago.medio_pago AS ordenpago_forma,
+	OrdenPago.cobrador as ordenpago_cobrador,
+	
+	CONCAT(Fact.serie, "-", Fact.numero) AS factura_nro,
+	Fact.total_importe AS factura_monto,
+    
     %s AS etl_utcdt_update
-    FROM
-	orden orden
-	INNER JOIN socio cr ON cr.id = orden.id_remitente
-	LEFT JOIN socio cd ON cd.id = orden.id_destinatario
+    
+    FROM orden orden
+	INNER JOIN socio SocioRemit ON SocioRemit.id = orden.id_remitente
+	LEFT JOIN socio SocioDest ON SocioDest.id = orden.id_destinatario
 	-- LEFT JOIN socio ct ON ct.id = orden.id_tercero
-	LEFT JOIN lugar lo ON lo.id = orden.id_lugar_origen
-	LEFT JOIN lugar ld ON ld.id = orden.id_lugar_destino
-	LEFT JOIN tipo_entrega te ON te.id = orden.id_tipo_entrega
-	LEFT JOIN factura f ON f.id = orden.id_factura
+	LEFT JOIN lugar LugarOri ON LugarOri.id = orden.id_lugar_origen
+	LEFT JOIN lugar LugarDest ON LugarDest.id = orden.id_lugar_destino
+	LEFT JOIN tipo_entrega TipoEntrega ON TipoEntrega.id = orden.id_tipo_entrega
+	LEFT JOIN factura Fact ON Fact.id = orden.id_factura
  
-	LEFT JOIN guia_transportista_orden guio ON guio.id_orden = orden.id
-	LEFT JOIN guia_transportista guit ON guit.id = guio.id_guia_transportista
-	LEFT JOIN manifiesto ma ON ma.id = guit.id_manifiesto
-	LEFT JOIN personal per ON per.id = guit.id_conductor
-	LEFT JOIN vehiculo vi ON vi.id = guit.id_vehiculo
-	-- inner join desembarque_guia dgui on dgui.id_guia_transportista=guit.id
-	LEFT JOIN desembarque des ON des.id = guit.id_desembarque
+	LEFT JOIN guia_transportista_orden GuiaTranspOrden ON GuiaTranspOrden.id_orden = orden.id
+	LEFT JOIN guia_transportista GuiaTransp ON GuiaTransp.id = GuiaTranspOrden.id_guia_transportista
+	LEFT JOIN manifiesto Manif ON Manif.id = GuiaTransp.id_manifiesto
+	LEFT JOIN personal Person ON Person.id = GuiaTransp.id_conductor
+	LEFT JOIN vehiculo Vehiculo ON Vehiculo.id = GuiaTransp.id_vehiculo
+	LEFT JOIN desembarque Desembarque ON Desembarque.id = GuiaTransp.id_desembarque
  
-	LEFT JOIN orden_pago orp ON orp.id_orden = guio.id_orden
+	LEFT JOIN orden_pago OrdenPago ON OrdenPago.id_orden = GuiaTranspOrden.id_orden
     WHERE orden.fecha >= %s AND orden.fecha <= %s
-    AND NOT guit.id IS NULL;
+    AND NOT GuiaTransp.id IS NULL;
     """
     
     # Connect to the source database
@@ -101,18 +117,21 @@ def extract_data_from_source_table():
     connection.close()
     return rows
 
-def dump_data_into_target_table(data):
+def dump_data_into_target_table(data, recordCount):
     # Connect to the target database
     print("Connecting to target database...")
     connection = mysql.connector.connect(**TRGT_DB_CONNECTION_CONFIG)
     cursor = connection.cursor()
     
     # Insert data into TABLE_B if it doesn't exist
+    counter = 0
     for row in data:
+        counter += 1        
         # UNIQUE KEY: orden_id, transportista_guia
         identifier1 = row['orden_id']  # Assuming 'id' is the unique identifier column
         identifier2 = row['transportista_guia']  # Assuming 'id' is the unique identifier column
-        print(f"Inserting (or updateting if exists) record with KEY({identifier1} | {identifier2})...")                
+        porcentaje = (counter / recordCount) * 100
+        print(f"Inserting (or updateting if exists) record with KEY({identifier1} | {identifier2}) | #{counter} of {recordCount} | {porcentaje:.2f}%")
         # Getting column names
         columns = row.keys()
         # Getting column values
@@ -138,12 +157,13 @@ def main():
         # Step 1: Extract data from source table
         print("Extracting data from source table...")
         data = extract_data_from_source_table()
-        print(f"Extracted {len(data)} rows from source table.")
+        recordCount = len(data)
+        print(f"Extracted {recordCount} rows from source table.")
 
         # Step 2: Dump data into target table
         if data:
             print("Dumping data into target table...")
-            dump_data_into_target_table(data)
+            dump_data_into_target_table(data, recordCount)
             print("Data successfully dumped into target table.")
         else:
             print("No data to dump into target table.")
