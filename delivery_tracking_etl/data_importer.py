@@ -18,7 +18,7 @@ def extract_data_from_source_table():
     print(f"Current local time: {local_datetime}")
     
     # Getting the date with margin
-    date_with_margin = local_datetime - timedelta(days=DT_CONFIG['DAYSOFMARGIN'])
+    date_with_margin = local_datetime - timedelta(days=DT_CONFIG['DAYSOFMARGIN_IMPORT'])
     
     # Query to extract data from source table
     query = """
@@ -142,11 +142,14 @@ def dump_data_into_target_table(data, recordCount):
         ON DUPLICATE KEY UPDATE
         {', '.join([f"{column}=VALUES({column})" for column in columns])};
         """
-        # Inserting or updating data into target table
+        # Inserting or updating data into target table        
         cursor.execute(query, tuple(row.values()))
-
-    # Commit the transaction            
-    connection.commit()
+        print(f"Record with KEY({identifier1} | {identifier2}) inserted (or updated) successfully.")
+        # Commit the transaction            
+        connection.commit()
+        print("Transaction committed.")
+    ### END FOR LOOP ### 
+    
     # Close the cursor and connection
     cursor.close()
     # Close the connection
