@@ -1,8 +1,13 @@
+from delivery_tracking_etl.logger_config import setup_logger
 from delivery_tracking_etl.config_db import SRC_DB_CONNECTION_CONFIG, TRGT_DB_CONNECTION_CONFIG
 from delivery_tracking_etl.config_dt import DT_CONFIG
 from datetime import datetime, timezone, timedelta
 import pytz
 import mysql.connector
+
+# Crear el logger usando el nombre del módulo
+logger = setup_logger(__name__)
+print("Logger created successfully.")
 
 def extract_data_from_source_table():
     # Getting the current datetime in UTC
@@ -156,25 +161,44 @@ def dump_data_into_target_table(data, recordCount):
     connection.close()
 
 def main():
+    logger.info("STARTING DATA_IMPORTER...")
     try:
         # Step 1: Extract data from source table
-        print("Extracting data from source table...")
+        msg = "Extracting data from source table..."
+        logger.info(msg)
+        print(msg)
         data = extract_data_from_source_table()
         recordCount = len(data)
-        print(f"Extracted {recordCount} rows from source table.")
+        msg = f"Extracted {recordCount} rows from source table."
+        logger.info(msg)
+        print(msg)
 
         # Step 2: Dump data into target table
         if data:
-            print("Dumping data into target table...")
+            msg = "Dumping data into target table..."
+            logger.info(msg)
+            print(msg)
             dump_data_into_target_table(data, recordCount)
-            print("Data successfully dumped into target table.")
+            msg = "Data successfully dumped into target table."
+            logger.info(msg)
+            print(msg)
         else:
-            print("No data to dump into target table.")
+            msg = "No data to dump into target table."
+            logger.info(msg)
+            print(msg)
 
     except mysql.connector.Error as e:
-        print(f"MySQL Error: {e}")
+        msg = f"MySQL Error: {e}"
+        logger.error(msg)
+        print(msg)
     except Exception as e:
-        print(f"Error: {e}")
+        msg = f"MySQL Error: {e}"
+        logger.error(msg)
+        print(msg)
+    ### END TRY-EXCEPT ###
+    msg = "DATA_IMPORTER FINISHED."
+    logger.info(msg)
+    print(msg)
 
 if __name__ == "__main__":
     main()
