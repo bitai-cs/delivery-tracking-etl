@@ -1,8 +1,13 @@
+from delivery_tracking_etl.logger_config import setup_logger
 from delivery_tracking_etl.config_db import TRGT_DB_CONNECTION_CONFIG
 from delivery_tracking_etl.config_dt import DT_CONFIG
 from datetime import datetime, timezone, timedelta
 import pytz
 import mysql.connector
+
+# Crear el logger usando el nombre del módulo
+logger = setup_logger(__name__)
+print("Logger created successfully.")
 
 def extract_data():
     # Getting the current datetime in UTC
@@ -154,25 +159,44 @@ def update_data(data, recordCount):
     print("Connection closed.")
 
 def main():
+    msg = "STARTING ASSIGN_ESTIMATED_DELIVERY_DATE..."
+    print(msg)
+    logger.info(msg)
     try:
         # Step 1: Extract data from source table
-        print("STEP 1 STARTING: GETTING DATA FROM seguimiento_documento TABLE...")
+        msg = "STEP 1 STARTING: GETTING DATA FROM seguimiento_documento TABLE..."
+        print(msg)
+        logger.info(msg)
         data = extract_data()
         recordCount = len(data)
-        print(f"STEP 1 COMPLETED: {recordCount} ROWS")
+        msg = f"STEP 1 COMPLETED: {recordCount} ROWS"
+        print(msg)
+        logger.info(msg)
 
         # Step 2: Dump data into target table
         if data:
-            print("STEP 2 STARTING: UPDATING DATA INTO seguimiento_documento TABLE...")
+            msg = "STEP 2 STARTING: UPDATING DATA INTO seguimiento_documento TABLE..."
+            print(msg)
+            logger.info(msg)
             update_data(data, recordCount)
-            print("STEP 2 COMPLETED: DATA UPDATED")
+            msg = "STEP 2 COMPLETED: DATA UPDATED"
+            logger.info(msg)
+            print(msg)
         else:
-            print("No data to update.")
+            msg = "No data to update."
+            print(msg)
+            logger.info(msg)
 
     except mysql.connector.Error as e:
-        print(f"MySQL Error: {e}")
+        msg = f"MySQL Error: {e}"
+        logger.error(msg)
+        print(msg)
     except Exception as e:
         print(f"Error: {e}")
+    ### END TRY-EXCEPT ###
+    msg = "ASSIGN_ESTIMATED_DELIVERY_DATE FINISHED."
+    print(msg) 
+    logger.info(msg)
 
 if __name__ == "__main__":
     main()
