@@ -12,8 +12,9 @@ python-dotenv = "^1.0.1"
 pytz = "^2025.1"
 
 [tool.poetry.scripts]
-data_importer = "delivery_tracking_etl.data_importer:main"
-assign_estimated_delivery_date = "delivery_tracking_etl.assign_estimated_delivery_date:main"
+etl_data_importer = "delivery_tracking_etl.etl_data_importer:main"
+etl_assign_estimated_delivery_date = "delivery_tracking_etl.etl_assign_estimated_delivery_date:main"
+etl_notification_deliverycompleted = "delivery_tracking_etl.etl_notification_deliverycompleted:main"
 
 [build-system]
 requires = ["poetry-core"]
