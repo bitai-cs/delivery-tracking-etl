@@ -13,7 +13,7 @@ pytz = "^2025.1"
 
 [tool.poetry.scripts]
 etl_data_importer = "delivery_tracking_etl.etl_data_importer:main"
-etl_assign_estimated_delivery_date = "delivery_tracking_etl.etl_assign_estimated_delivery_date:main"
+etl_assign_estimated_deliverydate = "delivery_tracking_etl.etl_assign_estimated_deliverydate:main"
 etl_notification_deliverycompleted = "delivery_tracking_etl.etl_notification_deliverycompleted:main"
 
 [build-system]

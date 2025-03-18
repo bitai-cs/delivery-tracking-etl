@@ -1,6 +1,6 @@
 from delivery_tracking_etl.logger_config import setup_logger
 from delivery_tracking_etl.config_db import SRC_DB_CONNECTION_CONFIG, TRGT_DB_CONNECTION_CONFIG
-from delivery_tracking_etl.config_dt import DT_CONFIG}
+from delivery_tracking_etl.config_dt import DT_CONFIG
 from delivery_tracking_etl.util_dt import datetime_by_timezone
 from datetime import datetime, timezone, timedelta
 import pytz
@@ -169,6 +169,18 @@ def dump_data_into_target_table(data, recordCount):
 def main():
     logger.printInfo("STARTING DATA_IMPORTER...")
     try:
+        #Review loaded environment variables
+        logger.printInfo("Review loaded SRC_DB_CONNECTION_CONFIG:")
+        for key, value in SRC_DB_CONNECTION_CONFIG.items():
+            if key == 'password':
+                value = '*** hiden ***'
+            logger.printInfo(f"{key}: {value}")
+        logger.printInfo("Review loaded TRGT_DB_CONNECTION_CONFIG:")
+        for key, value in TRGT_DB_CONNECTION_CONFIG.items():
+            if key == 'password':
+                value = '*** hiden ***'
+            logger.printInfo(f"{key}: {value}")
+
         # Step 1: Extract data from source table
         logger.printInfo("Extracting data from source table...")
         data = extract_data_from_source_table()

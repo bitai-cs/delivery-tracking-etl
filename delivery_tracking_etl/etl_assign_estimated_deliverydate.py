@@ -154,8 +154,13 @@ def update_data(data, recordCount):
 
 def main():
     logger.printInfo("ASSIGN_ESTIMATED_DELIVERY_DATE STARTING...")
-
     try:
+        logger.printInfo("Review loaded TRGT_DB_CONNECTION_CONFIG:")
+        for key, value in TRGT_DB_CONNECTION_CONFIG.items():
+            if key == 'password':
+                value = '*** hiden ***'
+            logger.printInfo(f"{key}: {value}")
+
         # Step 1: Extract data from source table
         logger.printInfo("STEP 1 STARTING: GETTING DATA FROM seguimiento_documento TABLE...")
         data = extract_data()
