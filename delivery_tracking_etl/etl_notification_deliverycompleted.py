@@ -1,11 +1,9 @@
-from delivery_tracking_etl.util_classes import OperationResult, DataOperationResult
 from delivery_tracking_etl.util_dt import datetime_by_timezone
+from delivery_tracking_etl.util_classes import OperationResult, DataOperationResult
 from delivery_tracking_etl.logger_config import setup_logger
 from delivery_tracking_etl.config_db import TRGT_DB_CONNECTION_CONFIG
-from delivery_tracking_etl.config_dt import DT_CONFIG
 from delivery_tracking_etl.config_smtp import SMTP_CONFIG
 from delivery_tracking_etl.config_sendermail import NOTIFICATION_SENDERMAIL_CONFIG
-from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import smtplib
@@ -19,15 +17,15 @@ print("Logger created successfully.")
 def send_mail(destinatario, asunto, cuerpo):
     try:
         msg = MIMEMultipart()
-        msg['From'] = f"{NOTIFICATION_SENDERMAIL_CONFIG['sender_name']} <{NOTIFICATION_SENDERMAIL_CONFIG['sender_email']}>"
+        msg['From'] = f"{NOTIFICATION_SENDERMAIL_CONFIG['NOTIF_SENDERNAME']} <{NOTIFICATION_SENDERMAIL_CONFIG['NOTIF_SENDERMAIL']}>"
         msg['To'] = destinatario
         msg['Subject'] = asunto
         msg.attach(MIMEText(cuerpo, 'html'))
 
-        with smtplib.SMTP(SMTP_CONFIG['host'], SMTP_CONFIG['port']) as server:
-            if SMTP_CONFIG['use_tls']:
+        with smtplib.SMTP(SMTP_CONFIG['SMTP_HOST'], SMTP_CONFIG['SMTP_PORT']) as server:
+            if SMTP_CONFIG['SMTP_USETLS']:
                 server.starttls()
-            server.login(SMTP_CONFIG['username'], SMTP_CONFIG['password'])
+            server.login(SMTP_CONFIG['SMTP_USER'], SMTP_CONFIG['SMTP_PASSWORD'])
             server.send_message(msg)
             print(f"Correo enviado a {destinatario}")
         ### END WITH ###
@@ -46,14 +44,19 @@ def send_mail(destinatario, asunto, cuerpo):
 
 # Función para obtener registros pendientes
 def obtener_registros_pendientes():
+    logger.printInfo("Obteniendo registros pendientes...")
     try:
+        logger.printInfo("Conectando a la base de datos...")
         conn = mysql.connector.connect(**TRGT_DB_CONNECTION_CONFIG)
         cursor = conn.cursor(dictionary=True)
         query = "SELECT * FROM NOTIF_VW_Notificacion_Cola WHERE notifestado_id = 0"
+        logger.printInfo("Ejecutando consulta...")
         cursor.execute(query)
         registros = cursor.fetchall()
+        logger.printInfo("Recuperando resultados de la consulta.")
         cursor.close()
         conn.close()
+        logger.printInfo("Conexión a la base de datos cerrada.")
 
         return DataOperationResult(
             success=True,
@@ -82,7 +85,7 @@ def update_notification(registro_id):
                 actfech = %s
             WHERE id = %s
         """
-        fecha_actual = datetime.now()
+        fecha_actual = datetime_by_timezone()
         cursor.execute(query, (fecha_actual, fecha_actual, registro_id))
         conn.commit()
         cursor.close()
@@ -103,8 +106,23 @@ def update_notification(registro_id):
 
 # Función principal
 def main():
-    logger.printInfo("NOTIFICACTION PROCCESS STArTING...")
+    logger.printInfo("NOTIFICACTION PROCCESS STARTING...")
     try:
+        #Review loaded environment variables
+        logger.printInfo("Review loaded TRGT_DB_CONNECTION_CONFIG:")
+        for key, value in TRGT_DB_CONNECTION_CONFIG.items():
+            if key == 'password':
+                value = '*** hiden ***'
+            logger.printInfo(f"{key}: {value}")
+        logger.printInfo("Review loaded SMTP_CONFIG:")
+        for key, value in SMTP_CONFIG.items():
+            if key == 'SMTP_PASSWORD':
+                value = '*** hiden ***'
+            logger.printInfo(f"{key}: {value}")
+        logger.printInfo("Review loaded NOTIFICATION_SENDERMAIL_CONFIG:")
+        for key, value in NOTIFICATION_SENDERMAIL_CONFIG.items():
+            logger.printInfo(f"{key}: {value}")
+
         dataOperationResult = obtener_registros_pendientes()
         if (not dataOperationResult.OperationSuccessfull):
             logger.printError("Error al obtener registros pendientes!")

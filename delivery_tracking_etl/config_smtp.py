@@ -6,9 +6,9 @@ load_dotenv()
 
 # config_smtp.py
 SMTP_CONFIG = {
-    'host': os.getenv('SMTP_HOST'),
-    'port': os.getenv('SMTP_PORT'),
-    'username': os.getenv('SMTP_USER'),
-    'password': os.getenv('SMTP_PASSWORD'),
-    'use_tls': os.getenv('SMTP_USETLS')
+    'SMTP_HOST': os.getenv('SMTP_HOST'),
+    'SMTP_PORT': os.getenv('SMTP_PORT'),
+    'SMTP_USER': os.getenv('SMTP_USER'),
+    'SMTP_PASSWORD': os.getenv('SMTP_PASSWORD'),
+    'SMTP_USETLS': os.getenv('SMTP_USETLS')
 }

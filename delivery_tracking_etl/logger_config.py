@@ -25,12 +25,14 @@ class ETLLogger(logging.Logger):
         print(param)
 
 def setup_logger(module_name):
+    print("Setting up logger...")
     # Obtener la fecha y hora actual según la zona horaria configurada
     now = datetime_by_timezone()
     # Obtener la fecha actual
     current_date = now.strftime('%Y-%m-%d')
     # Nombre del archivo de log
     log_filename = f'logs/etl_{module_name}_{current_date}.log'
+    print(f"Log file: {log_filename}")
 
     # Crear el directorio de logs si no existe
     os.makedirs('logs', exist_ok=True)
@@ -42,8 +44,10 @@ def setup_logger(module_name):
         format='%(asctime)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
+    print("Logger configured successfully.")
     # Configurar la clase del logger
     logging.setLoggerClass(ETLLogger)
+    print("Logger class configured successfully.")
 
     # Eliminar el archivo de log del día anterior
     delete_old_log(module_name, now)
@@ -59,4 +63,6 @@ def delete_old_log(module_name, current_date):
 
     # Eliminar el archivo de log de ayer si existe
     if os.path.exists(old_log_filename):
+        print(f"Deleting old log file: {old_log_filename}...")
         os.remove(old_log_filename)
+        print("Old log file deleted successfully.")
