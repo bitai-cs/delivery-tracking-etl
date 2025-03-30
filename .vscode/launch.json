@@ -8,8 +8,8 @@
             "name": "Python Debugger: Module",
             "type": "debugpy",
             "request": "launch",
-            "module": "delivery_tracking_etl.assign_estimated_delivery_date",
-            "python": "C:/Users/Viko/AppData/Local/pypoetry/Cache/virtualenvs/delivery-tracking-etl-Ncw1gevm-py3.13/Scripts/python.exe"
+            "module": "delivery_tracking_etl.etl_notification_deliverycompleted",
+            "python": "C:/Users/Viko/AppData/Local/pypoetry/Cache/virtualenvs/delivery-tracking-etl-rVF6In9m-py3.10/Scripts/python.exe"
         }
     ]
 }
