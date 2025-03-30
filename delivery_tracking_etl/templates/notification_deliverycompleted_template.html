@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notificación de Entrega completada</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .icon {
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        .footer {
+            margin-top: 30px;
+            font-size: 0.9em;
+            color: #474747;
+        }
+        .header {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 5px;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>Notificación de Entrega Completada</h2>
+    </div>
+
+    <p>Estimado/a <strong>{{customer_name}}</strong>, se ha completado la entrega de la OS: <strong>{{customer_so}}</strong>, sus cargos están listos para ser recogidos en nuestras oficinas.</p>
+
+    <p>
+        <span class="icon">📍</span> Dirección: <strong>{{company_address}}</strong>.<br>
+        <span class="icon">📅</span> A partir del: <strong>{{collection_date}}</strong>.<br>
+        <span class="icon">⏰</span> Horario de atención: <strong>{{company_business_hours}}</strong>.
+    </p>
+
+    <p>Puede ver el detalle en el siguiente link: {{so_link}}</p>
+
+    <p>Por favor, no olvides traer un documento de identificación.</p>
+
+    <p>Si tiene alguna consulta o requiere asistencia, no dude en contactarnos al <strong>{{business_phones}}</strong>.</p>
+
+    <div class="footer">
+        <p>¡Gracias por confiar en nosotros!</p>
+        <p><h3>{{company_name}}</h3></p>
+    </div>
+</body>
+</html>

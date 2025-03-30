@@ -6,6 +6,7 @@ from delivery_tracking_etl.config_smtp import SMTP_CONFIG
 from delivery_tracking_etl.config_sendermail import NOTIFICATION_SENDERMAIL_CONFIG
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from pathlib import Path
 import smtplib
 import mysql.connector
 
@@ -14,36 +15,35 @@ logger = setup_logger(__name__)
 print("Logger created successfully.")
 
 # Función para enviar correo
-def send_mail(destinatario, asunto, cuerpo):
+def sendMail(mailRecipient, mailSubject, mailBody):
     try:
         msg = MIMEMultipart()
         msg['From'] = f"{NOTIFICATION_SENDERMAIL_CONFIG['NOTIF_SENDERNAME']} <{NOTIFICATION_SENDERMAIL_CONFIG['NOTIF_SENDERMAIL']}>"
-        msg['To'] = destinatario
-        msg['Subject'] = asunto
-        msg.attach(MIMEText(cuerpo, 'html'))
+        msg['To'] = mailRecipient
+        msg['Subject'] = mailSubject
+        msg.attach(MIMEText(mailBody, 'html'))
 
         with smtplib.SMTP(SMTP_CONFIG['SMTP_HOST'], SMTP_CONFIG['SMTP_PORT']) as server:
             if SMTP_CONFIG['SMTP_USETLS']:
                 server.starttls()
             server.login(SMTP_CONFIG['SMTP_USER'], SMTP_CONFIG['SMTP_PASSWORD'])
             server.send_message(msg)
-            print(f"Correo enviado a {destinatario}")
         ### END WITH ###
 
         return OperationResult(
                 success=True,
                 status="OK",
-                message=f"Correo enviado correctamente a {destinatario}"
+                message=f"Correo enviado correctamente a {mailRecipient}"
             )
     except Exception as e:
         return OperationResult(
             success=False,
             status=e.__module__,
-            message=f"Error al enviar correo a {destinatario}: {e}"
+            message=f"Error al enviar correo a {mailRecipient}: {e}"
         )
 
 # Función para obtener registros pendientes
-def obtener_registros_pendientes():
+def getPendingNotifications():
     logger.printInfo("Obteniendo registros pendientes...")
     try:
         logger.printInfo("Conectando a la base de datos...")
@@ -72,8 +72,18 @@ def obtener_registros_pendientes():
             data=None
         )
 
+def loadMailTemplate(templateData):
+    # Leer el contenido del archivo HTML
+    templateContent = Path('delivery_tracking_etl/templates/notification_deliverycompleted_template.html').read_text(encoding='utf-8')
+
+    # Reemplazar los placeholders con los datos reales
+    for key, value in templateData.items():
+        templateContent = templateContent.replace(f'{{{{{key}}}}}', value)
+
+    return templateContent
+
 # Función para actualizar registro
-def update_notification(registro_id):
+def updateNotificationRecord(notificationId):
     try:
         conn = mysql.connector.connect(**TRGT_DB_CONNECTION_CONFIG)
         cursor = conn.cursor()
@@ -86,22 +96,22 @@ def update_notification(registro_id):
             WHERE id = %s
         """
         fecha_actual = datetime_by_timezone()
-        cursor.execute(query, (fecha_actual, fecha_actual, registro_id))
+        cursor.execute(query, (fecha_actual, fecha_actual, notificationId))
         conn.commit()
         cursor.close()
         conn.close()
-        print(f"Registro {registro_id} actualizado")
+        print(f"Registro {notificationId} actualizado")
 
         return OperationResult(
             success=True,
             status="OK",
-            message=f"Registro {registro_id} actualizado correctamente."
+            message=f"Registro {notificationId} actualizado correctamente."
         )
     except Exception as e:
         return OperationResult(
             success=False,
             status="ERROR",
-            message=f"Error al actualizar registro {registro_id}: {e}"
+            message=f"Error al actualizar registro {notificationId}: {e}"
         )
 
 # Función principal
@@ -123,7 +133,7 @@ def main():
         for key, value in NOTIFICATION_SENDERMAIL_CONFIG.items():
             logger.printInfo(f"{key}: {value}")
 
-        dataOperationResult = obtener_registros_pendientes()
+        dataOperationResult = getPendingNotifications()
         if (not dataOperationResult.OperationSuccessfull):
             logger.printError("Error al obtener registros pendientes!")
             logger.printError(f"Status: {dataOperationResult.status} Message: {dataOperationResult.message}")
@@ -135,20 +145,31 @@ def main():
         logger.printInfo("Procesando notificaciones...")
         for notification in dataOperationResult.Data:
             notification_id = notification['id']
-            receipt = notification['notifcola_email']
+            recipient = notification['notifcola_email']
             subject = notification['notiftipo_titulo']
-            body = notification['notiftipo_descripcion']
 
-            logger.printInfo(f"Enviando correo a {receipt}...")
-            operationResult = send_mail(receipt, subject, body)
+            templateData = {
+                'customer_name': notification['remitente_razonsocial'],
+                'customer_so': notification['orden_servicio'],
+                'company_address': 'Av. Jose Galvez 560, La Victoria.',
+                'collection_date': notification['completado_fecha'].strftime('%d/%m/%Y'),
+                'company_business_hours': '10:00 AM a 18:00 PM',
+                'business_phones': '959 959 010 o al 959 959 032',
+                'company_name': 'Walla Express',
+                'so_link': f'http://159.203.97.223:8002/CustomerSupport/Details/{notification["seguimiento_id"]}'
+            }
+            mailBody = loadMailTemplate(templateData)
+
+            logger.printInfo(f"Enviando correo a {recipient}...")
+            operationResult = sendMail(recipient, subject, mailBody)
             if (not operationResult.OperationSuccessfull):
                 logger.printError("Error al enviar correo!")
                 logger.printError(f"Status: {operationResult.status} Message: {operationResult.message}")
             else:
-                logger.printInfo(f"Correo enviado a {receipt}")
+                logger.printInfo(f"Correo enviado a {recipient}")
 
             logger.printInfo(f"Actualizando registro {notification_id}...")
-            operationResult = update_notification(notification_id)
+            operationResult = updateNotificationRecord(notification_id)
             if (not operationResult.OperationSuccessfull):
                 logger.printError("Error al actualizar notificación!")
                 logger.printError(f"Status: {operationResult.status} Message: {operationResult.message}")
