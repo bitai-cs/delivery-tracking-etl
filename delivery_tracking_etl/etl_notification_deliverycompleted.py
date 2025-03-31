@@ -15,11 +15,13 @@ logger = setup_logger(__name__)
 print("Logger created successfully.")
 
 # Función para enviar correo
-def sendMail(mailRecipient, mailSubject, mailBody):
+def sendMail(mailRecipient, mailCopy, mailSubject, mailBody):
     try:
         msg = MIMEMultipart()
         msg['From'] = f"{NOTIFICATION_SENDERMAIL_CONFIG['NOTIF_SENDERNAME']} <{NOTIFICATION_SENDERMAIL_CONFIG['NOTIF_SENDERMAIL']}>"
         msg['To'] = mailRecipient
+        if mailCopy is not None or mailCopy != '':
+            msg['Cc'] = mailCopy
         msg['Subject'] = mailSubject
         msg.attach(MIMEText(mailBody, 'html'))
 
@@ -146,6 +148,7 @@ def main():
         for notification in dataOperationResult.Data:
             notification_id = notification['id']
             recipient = notification['notifcola_email']
+            copy = notification['notifcola_emailscc']
             subject = notification['notiftipo_titulo']
 
             templateData = {
@@ -161,7 +164,7 @@ def main():
             mailBody = loadMailTemplate(templateData)
 
             logger.printInfo(f"Enviando correo a {recipient}...")
-            operationResult = sendMail(recipient, subject, mailBody)
+            operationResult = sendMail(recipient, copy, subject, mailBody)
             if (not operationResult.OperationSuccessfull):
                 logger.printError("Error al enviar correo!")
                 logger.printError(f"Status: {operationResult.status} Message: {operationResult.message}")
