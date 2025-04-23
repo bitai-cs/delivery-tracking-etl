@@ -2,7 +2,7 @@ from delivery_tracking_etl.logger_config import setup_logger
 from delivery_tracking_etl.config_db import SRC_DB_CONNECTION_CONFIG, TRGT_DB_CONNECTION_CONFIG
 from delivery_tracking_etl.config_dt import DT_CONFIG
 from delivery_tracking_etl.util_dt import datetime_by_timezone
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
 import pytz
 import mysql.connector
 
@@ -28,7 +28,7 @@ def extract_data_from_source_table():
 	CONCAT(GuiaTransp.serie, "-", GuiaTransp.numero) AS transportista_guia,
 
 	CONCAT(Manif.serie, "-", Manif.numero) AS manifiesto_nro,
-	Manif.fecha AS manifiesto_fecha,
+	Manif.fecha_sistema AS manifiesto_fecha,
 
 	LugarOri.nombre AS orden_origen,
 	SocioRemit.razon_social AS remitente_razonsocial,
@@ -88,7 +88,8 @@ def extract_data_from_source_table():
 	LEFT JOIN desembarque Desembarque ON Desembarque.id = GuiaTransp.id_desembarque
 
 	LEFT JOIN orden_pago OrdenPago ON OrdenPago.id_orden = GuiaTranspOrden.id_orden
-    WHERE orden.fecha >= %s AND orden.fecha <= %s
+    WHERE TipoEntrega.id = 2 -- DOMICILIO
+    AND orden.fecha >= %s AND orden.fecha <= %s
     AND NOT GuiaTransp.id IS NULL;
     """
 
