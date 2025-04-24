@@ -23,6 +23,7 @@ def extract_data():
     SELECT id, CAST(orden_fecha AS DATETIME) AS orden_fecha, orden_destino
     FROM seguimiento_documento
     WHERE orden_fecha >= %s
+    AND estado_id = 0 -- PLAZO DE ENTREGA POR ASIGNAR
     AND (plazoasignado_fechlimite IS NULL or programado_fechllegada IS NULL or entransito_fechllegada IS NULL);
     """
 
@@ -96,11 +97,14 @@ def update_data(data, recordCount):
             # Actualizar campo plazoasignado_fechlimite en la tabla seguimiento_documento
             update_query = """
             UPDATE seguimiento_documento
-            SET plazoasignado_fechlimite = %s
-            WHERE id = %s AND plazoasignado_fechlimite IS NULL;
+            SET plazoasignado_fechlimite = %s,
+                programado_fechllegada = %s,
+                entransito_fechllegada = %s,
+                estado_id = 10 /* PLAZO DE ENTREGA ASIGNADO */
+            WHERE id = %s AND estado_id = 0 /* PLAZO DE ENTREGA POR ASIGNAR */;
             """
             print(f"Evaluar actualizacion plazoasignado_fechlimite de registro: {id}...")
-            cursor.execute(update_query, (plazoasignado_fechlimite, id))
+            cursor.execute(update_query, (plazoasignado_fechlimite, plazoasignado_fechlimite, plazoasignado_fechlimite, id))
             # Verificar si se actualizó el campo
             if cursor.rowcount > 0:
                 print("Commiting the transaction...")
@@ -108,40 +112,10 @@ def update_data(data, recordCount):
                 print("Transaction commited.")
             else:
                 print("No se actualizó el campo plazoasignado_fechlimite.")
-
-            # Actualizar campos programado_fechllegada en la tabla A
-            update_query = """
-            UPDATE seguimiento_documento
-            SET programado_fechllegada = %s
-            WHERE id = %s AND programado_fechllegada IS NULL;
-            """
-            print(f"Evaluar actualizacion programado_fechllegada de registro: {id}...")
-            cursor.execute(update_query, (programado_fechllegada, id))
-            # Verificar si se actualizó el campo
-            if cursor.rowcount > 0:
-                print("Commiting the transaction...")
-                connection.commit()
-                print("Transaction commited.")
-            else:
-                print("No se actualizó el campo programado_fechllegada.")
-
-            # Actualizar campo entransito_fechllegada en la tabla A
-            update_query = """
-            UPDATE seguimiento_documento
-            SET entransito_fechllegada = %s
-            WHERE id = %s AND entransito_fechllegada IS NULL;
-            """
-            print(f"Evaluar actualizacion entransito_fechllegada de registro: {id}...")
-            cursor.execute(update_query, (entransito_fechllegada, id))
-            # Verificar si se actualizó el campo
-            if cursor.rowcount > 0:
-                print("Commiting the transaction...")
-                connection.commit()
-                print("Transaction commited.")
-            else:
-                print("No se actualizó el campo entransito_fechllegada.")
+            ### END IF ###
         else:
             print(f"No se encontró tiempoentrega_dias para para {orden_destino}")
+        ## END IF ###
 
         print("-------------------------------------------------------------------")
     ### END FOR LOOP ###
@@ -153,7 +127,7 @@ def update_data(data, recordCount):
     logger.printInfo("Connection closed.")
 
 def main():
-    logger.printInfo("ASSIGN_ESTIMATED_DELIVERY_DATE STARTING...")
+    logger.printInfo("ASSIGN_10_ESTIMATED_DELIVERY_DATE STARTING...")
     try:
         logger.printInfo("Review loaded TRGT_DB_CONNECTION_CONFIG:")
         for key, value in TRGT_DB_CONNECTION_CONFIG.items():
@@ -175,15 +149,15 @@ def main():
         else:
             logger.printInfo("No data to update.")
 
-        logger.printInfo("ASSIGN_ESTIMATED_DELIVERY_DATE FINISHED.")
+        logger.printInfo("ASSIGN_10_ESTIMATED_DELIVERY_DATE FINISHED.")
     except mysql.connector.Error as e:
         logger.printError("Error en MySql!")
         logger.printException(e)
-        logger.printInfo("ASSIGN_ESTIMATED_DELIVERY_DATE FINISHED W/ ERRORS.")
+        logger.printInfo("ASSIGN_10_ESTIMATED_DELIVERY_DATE FINISHED W/ ERRORS.")
     except Exception as e:
         logger.printError("Error en la ejecución del ETL!")
         logger.printException(e)
-        logger.printInfo("ASSIGN_ESTIMATED_DELIVERY_DATE FINISHED W/ ERRORS.")
+        logger.printInfo("ASSIGN_10_ESTIMATED_DELIVERY_DATE FINISHED W/ ERRORS.")
     ### END TRY-EXCEPT ###
 ### END MAIN ###
 
