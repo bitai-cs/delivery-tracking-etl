@@ -55,8 +55,8 @@ def extract_data_from_source_table():
 	CONCAT(Person.nombre, "-", Person.apellido) AS vehiculo_conductor,
 	Vehiculo.placa AS vehiculo_placa,
 
-	CONCAT(Desembarque.serie, "-", Desembarque.numero) AS desembarque,
-	Desembarque.fecha AS desembarque_fecha,
+	CONCAT(Desembarque.serie, "-", Desembarque.numero) AS desembarque_nro,
+	Desembarque.fecha_sistema AS desembarque_fecha,
 
 	orden.fl_entregado AS orden_flagentregado,
 	orden.fecha_entregado AS orden_fechaentregado,

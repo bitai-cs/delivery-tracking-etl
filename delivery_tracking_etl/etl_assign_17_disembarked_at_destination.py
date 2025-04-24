@@ -13,18 +13,18 @@ print("Logger created successfully.")
 def extract_data():
     # Converting the UTC datetime to local datetime
     datetimeFromTimeZone = datetime_by_timezone()
-    logger.printInfo(f"Current datet & time by timezone: {datetimeFromTimeZone}")
+    logger.printInfo(f"Current date & time by timezone: {datetimeFromTimeZone}")
 
     # Getting the date with margin
-    date_with_margin = datetimeFromTimeZone - timedelta(days=DT_CONFIG['DAYSOFMARGIN_ASSIGNDELIVERYDATE'])
+    date_with_margin = datetimeFromTimeZone - timedelta(days=DT_CONFIG['DAYSOFMARGIN_DISEMBARKEDATDESTINATION'])
 
     # Query to extract data from source table
     query = """
-    SELECT id, CAST(orden_fecha AS DATETIME) AS orden_fecha, orden_destino
+    SELECT  id, orden_id, CAST(orden_fecha AS DATETIME) AS orden_fecha, orden_servicio
     FROM seguimiento_documento
-    WHERE orden_fecha >= %s
-    AND estado_id = 0 -- PLAZO DE ENTREGA POR ASIGNAR
-    AND (plazoasignado_fechlimite IS NULL or programado_fechllegada IS NULL or entransito_fechllegada IS NULL);
+    WHERE   orden_fecha >= %s
+            AND estado_id = 13 -- EMBARCADO HACIA DESTINO
+            AND NOT desembarque_nro IS NULL;
     """
 
     # Connect to the source database
@@ -64,59 +64,37 @@ def update_data(data, recordCount):
     for row in data:
         # Extract data from row
         id = row['id']
+        orden_id = row['orden_id']
         orden_fecha = row['orden_fecha']
-        orden_destino = row['orden_destino']
+        orden_servicio = row['orden_servicio']
 
         # Increment the counter
         counter += 1
         porcentaje = (counter / recordCount) * 100
-        print(f"Processing record: {id} | {orden_fecha} | {orden_destino} | #{counter} of {recordCount} | {porcentaje:.2f}%")
+        print(f"Processing record: {id} | {orden_id} | {orden_fecha} | {orden_servicio} | #{counter} of {recordCount} | {porcentaje:.2f}%")
 
-        # Consulta para obtener el tiempo de entrega desde la tabla B
-        query_b = """
-        SELECT tiempoentrega_dias FROM destino_tiempoentrega
-        WHERE destino_nombre = %s LIMIT 1;
+        # Actualizar campo plazoasignado_fechlimite en la tabla seguimiento_documento
+        update_query = """
+        UPDATE seguimiento_documento
+        SET estado_id = 17, /* DESEMBARCADO EN DESTINO */
+            desembarcado_usuestado = 'ETL',
+            desembarcado_fechestado = NOW()
+        WHERE   estado_id = 13 /* EMBARCADO HACIA ORIGEN */
+                AND id = %s
+                AND NOT desembarque_nro IS NULL;
         """
-        # Ejecutar la consulta y obtener el tiempo de entrega
-        print(f"Obteniendo tiempoentrega_dias para {orden_destino}...")
-        cursor.execute(query_b, (orden_destino,))
-        tiempo_entrega = cursor.fetchone()
-
-        if tiempo_entrega:
-            tiempo_entrega_dias = tiempo_entrega[0]
-            print(f"Se encontró tiempoentrega_dias para {orden_destino}: {tiempo_entrega_dias}")
-
-            # Calcular las nuevas fechas
-            plazoasignado_fechlimite = orden_fecha + timedelta(days=tiempo_entrega_dias) + timedelta(hours=12)
-            print(f"Valor para plazoasignado_fechlimite: {plazoasignado_fechlimite}")
-            programado_fechllegada = orden_fecha + timedelta(days=tiempo_entrega_dias) + timedelta(hours=12)
-            print(f"Valor para programado_fechllegada: {programado_fechllegada}")
-            entransito_fechllegada = orden_fecha + timedelta(days=tiempo_entrega_dias) + timedelta(hours=12)
-            print(f"Valor para entransito_fechllegada: {entransito_fechllegada}")
-
-            # Actualizar campo plazoasignado_fechlimite en la tabla seguimiento_documento
-            update_query = """
-            UPDATE seguimiento_documento
-            SET plazoasignado_fechlimite = %s,
-                programado_fechllegada = %s,
-                entransito_fechllegada = %s,
-                estado_id = 10 /* PLAZO DE ENTREGA ASIGNADO */
-            WHERE id = %s AND estado_id = 0 /* PLAZO DE ENTREGA POR ASIGNAR */;
-            """
-            print(f"Evaluar actualizacion plazoasignado_fechlimite de registro: {id}...")
-            cursor.execute(update_query, (plazoasignado_fechlimite, plazoasignado_fechlimite, plazoasignado_fechlimite, id))
-            # Verificar si se actualizó el campo
-            if cursor.rowcount > 0:
-                print("Commiting the transaction...")
-                connection.commit()
-                print("Transaction commited.")
-            else:
-                print("No se actualizó el campo plazoasignado_fechlimite.")
-            ### END IF ###
+        print(f"Evaluar actualizacion DESEMBARCADO_EN_DESTINO de registro: {id}...")
+        cursor.execute(update_query, (id, ))
+        # Verificar si se actualizó el campo
+        if cursor.rowcount > 0:
+            print("Commiting the transaction...")
+            connection.commit()
+            logger.printInfo(f"Updated: {id} | {orden_id} | {orden_fecha} | {orden_servicio}")
+            print("Transaction commited.")
         else:
-            print(f"No se encontró tiempoentrega_dias para para {orden_destino}")
-        ## END IF ###
-
+            logger.printInfo(f"No Updated: {id} | {orden_id} | {orden_fecha} | {orden_servicio}")
+            print("No se actualizó a campo DESEMBARCADO_EN_DESTINO.")
+        ### END IF ###
         print("-------------------------------------------------------------------")
     ### END FOR LOOP ###
 
@@ -127,12 +105,16 @@ def update_data(data, recordCount):
     logger.printInfo("Connection closed.")
 
 def main():
-    logger.printInfo("ASSIGN_ESTIMATED_DELIVERY_DATE STARTING...")
+    logger.printInfo("ASSIGN_17_DISEMBARKED_AT_DESTINATION STARTING...")
     try:
         logger.printInfo("Review loaded TRGT_DB_CONNECTION_CONFIG:")
         for key, value in TRGT_DB_CONNECTION_CONFIG.items():
             if key == 'password':
                 value = '*** hiden ***'
+            logger.printInfo(f"{key}: {value}")
+
+        logger.printInfo("Review loaded DT_CONFIG:")
+        for key, value in DT_CONFIG.items():
             logger.printInfo(f"{key}: {value}")
 
         # Step 1: Extract data from source table
@@ -149,15 +131,15 @@ def main():
         else:
             logger.printInfo("No data to update.")
 
-        logger.printInfo("ASSIGN_ESTIMATED_DELIVERY_DATE FINISHED.")
+        logger.printInfo("ASSIGN_17_DISEMBARKED_AT_DESTINATION FINISHED.")
     except mysql.connector.Error as e:
         logger.printError("Error en MySql!")
         logger.printException(e)
-        logger.printInfo("ASSIGN_ESTIMATED_DELIVERY_DATE FINISHED W/ ERRORS.")
+        logger.printInfo("ASSIGN_17_DISEMBARKED_AT_DESTINATION FINISHED W/ ERRORS.")
     except Exception as e:
         logger.printError("Error en la ejecución del ETL!")
         logger.printException(e)
-        logger.printInfo("ASSIGN_ESTIMATED_DELIVERY_DATE FINISHED W/ ERRORS.")
+        logger.printInfo("ASSIGN_17_DISEMBARKED_AT_DESTINATION FINISHED W/ ERRORS.")
     ### END TRY-EXCEPT ###
 ### END MAIN ###
 
