@@ -23,7 +23,6 @@ def extract_data():
     SELECT id, CAST(orden_fecha AS DATETIME) AS orden_fecha, orden_destino
     FROM seguimiento_documento
     WHERE orden_fecha >= %s
-    AND estado_id = 0 -- PLAZO DE ENTREGA POR ASIGNAR
     AND (plazoasignado_fechlimite IS NULL or programado_fechllegada IS NULL or entransito_fechllegada IS NULL);
     """
 
@@ -97,11 +96,11 @@ def update_data(data, recordCount):
             # Actualizar campo plazoasignado_fechlimite en la tabla seguimiento_documento
             update_query = """
             UPDATE seguimiento_documento
-            SET plazoasignado_fechlimite = %s,
-                programado_fechllegada = %s,
-                entransito_fechllegada = %s,
-                estado_id = 10 /* PLAZO DE ENTREGA ASIGNADO */
-            WHERE id = %s AND estado_id = 0 /* PLAZO DE ENTREGA POR ASIGNAR */;
+            SET plazoasignado_fechlimite = CASE WHEN plazoasignado_fechlimite IS NULL THEN %s ELSE plazoasignado_fechlimite END,
+                programado_fechllegada = CASE WHEN programado_fechllegada IS NULL THEN %s ELSE programado_fechllegada END,
+                entransito_fechllegada = CASE WHEN entransito_fechllegada IS NULL THEN %s ELSE entransito_fechllegada END,
+                estado_id = CASE WHEN estado_id = 0 THEN 10 ELSE estado_id END /* PLAZO DE ENTREGA ASIGNADO */
+            WHERE id = %s;
             """
             print(f"Evaluar actualizacion plazoasignado_fechlimite de registro: {id}...")
             cursor.execute(update_query, (plazoasignado_fechlimite, plazoasignado_fechlimite, plazoasignado_fechlimite, id))
