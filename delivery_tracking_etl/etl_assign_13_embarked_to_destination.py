@@ -21,10 +21,10 @@ def extract_data():
     # Query to extract data from source table
     query = """
     SELECT  id, orden_id, CAST(orden_fecha AS DATETIME) AS orden_fecha, orden_servicio
-    FROM seguimiento_documento
-    WHERE orden_fecha >= %s
-    AND estado_id = 0 OR estado_id = 10 -- PLAZO DE ENTREGA ASIGNADO
-    AND NOT manifiesto_nro IS NULL;
+    FROM    seguimiento_documento
+    WHERE   orden_fecha >= %s
+    AND     (estado_id = 0 OR estado_id = 10) /* NUEVO o CON PLAZO DE ENTREGA */
+    AND     NOT manifiesto_nro IS NULL;
     """
 
     # Connect to the source database
