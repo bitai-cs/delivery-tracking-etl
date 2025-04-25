@@ -23,7 +23,7 @@ def extract_data():
     SELECT  id, orden_id, CAST(orden_fecha AS DATETIME) AS orden_fecha, orden_servicio
     FROM seguimiento_documento
     WHERE orden_fecha >= %s
-    AND estado_id = 10 -- PLAZO DE ENTREGA ASIGNADO
+    AND estado_id = 0 OR estado_id = 10 -- PLAZO DE ENTREGA ASIGNADO
     AND NOT manifiesto_nro IS NULL;
     """
 
@@ -79,7 +79,7 @@ def update_data(data, recordCount):
         SET estado_id = 13, /* EMBARCADO HACIA DESTINO */
             embarcado_usuestado = 'ETL',
             embarcado_fechestado = NOW()
-        WHERE   estado_id = 10 /* PLAZO DE ENTREGA POR ASIGNAR */
+        WHERE   (estado_id = 0 OR estado_id = 10) /* NUEVOS O SIN PLAZO ENTREGA */
                 AND id = %s;
         """
         print(f"Evaluar actualizacion EMBARCADO_HACIA_DESTINO de registro: {id}...")
