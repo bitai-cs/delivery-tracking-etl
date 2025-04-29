@@ -2,6 +2,7 @@ from delivery_tracking_etl.logger_config import setup_logger
 from delivery_tracking_etl.config_db import TRGT_DB_CONNECTION_CONFIG
 from delivery_tracking_etl.config_dt import DT_CONFIG
 from delivery_tracking_etl.util_dt import datetime_by_timezone
+from delivery_tracking_etl.config_etlassign import ETLASSIGN_CONFIG
 from datetime import timedelta
 import pytz
 import mysql.connector
@@ -20,7 +21,7 @@ def extract_data():
 
     # Query to extract data from source table
     query = """
-    SELECT id, CAST(orden_fecha AS DATETIME) AS orden_fecha, orden_destino
+    SELECT id, CAST(orden_fecha AS DATETIME) AS orden_fecha, orden_origen, orden_destino
     FROM seguimiento_documento
     WHERE orden_fecha >= %s
     AND (plazoasignado_fechlimite IS NULL or programado_fechllegada IS NULL or entransito_fechllegada IS NULL);
@@ -64,12 +65,13 @@ def update_data(data, recordCount):
         # Extract data from row
         id = row['id']
         orden_fecha = row['orden_fecha']
+        orden_origen = row['orden_origen']
         orden_destino = row['orden_destino']
 
         # Increment the counter
         counter += 1
         porcentaje = (counter / recordCount) * 100
-        print(f"Processing record: {id} | {orden_fecha} | {orden_destino} | #{counter} of {recordCount} | {porcentaje:.2f}%")
+        print(f"Processing record: {id} | {orden_fecha} | {orden_origen} | {orden_destino} | #{counter} of {recordCount} | {porcentaje:.2f}%")
 
         # Consulta para obtener el tiempo de entrega desde la tabla B
         query_b = """
@@ -77,20 +79,23 @@ def update_data(data, recordCount):
         WHERE destino_nombre = %s LIMIT 1;
         """
         # Ejecutar la consulta y obtener el tiempo de entrega
-        print(f"Obteniendo tiempoentrega_dias para {orden_destino}...")
-        cursor.execute(query_b, (orden_destino,))
+        print(f"Obteniendo tiempoentrega_dias de {orden_origen} hacia {orden_destino}...")
+        if (orden_destino == ETLASSIGN_CONFIG['LIMA_LOCATION']):
+            cursor.execute(query_b, (orden_origen,))
+        else:
+            cursor.execute(query_b, (orden_destino,))
         tiempo_entrega = cursor.fetchone()
 
         if tiempo_entrega:
             tiempo_entrega_dias = tiempo_entrega[0]
             print(f"Se encontró tiempoentrega_dias para {orden_destino}: {tiempo_entrega_dias}")
 
-            # Calcular las nuevas fechas
-            plazoasignado_fechlimite = orden_fecha + timedelta(days=tiempo_entrega_dias) + timedelta(hours=12)
+            # Asignar la fecha límite de entrega en base a la fecha de orden y el tiempo de entrega
+            plazoasignado_fechlimite = orden_fecha + timedelta(days=tiempo_entrega_dias) + timedelta(hours=23) + timedelta(minutes=59) + timedelta(seconds=59)
             print(f"Valor para plazoasignado_fechlimite: {plazoasignado_fechlimite}")
-            programado_fechllegada = orden_fecha + timedelta(days=tiempo_entrega_dias) + timedelta(hours=12)
+            programado_fechllegada = orden_fecha + timedelta(days=tiempo_entrega_dias) + timedelta(hours=23) + timedelta(minutes=59) + timedelta(seconds=59)
             print(f"Valor para programado_fechllegada: {programado_fechllegada}")
-            entransito_fechllegada = orden_fecha + timedelta(days=tiempo_entrega_dias) + timedelta(hours=12)
+            entransito_fechllegada = orden_fecha + timedelta(days=tiempo_entrega_dias) + timedelta(hours=23) + timedelta(minutes=59) + timedelta(seconds=59)
             print(f"Valor para entransito_fechllegada: {entransito_fechllegada}")
 
             # Actualizar campo plazoasignado_fechlimite en la tabla seguimiento_documento
