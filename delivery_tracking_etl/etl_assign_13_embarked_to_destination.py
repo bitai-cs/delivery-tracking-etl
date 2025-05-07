@@ -24,7 +24,9 @@ def extract_data():
     FROM    seguimiento_documento
     WHERE   orden_fecha >= %s
     AND     (estado_id = 0 OR estado_id = 10) /* NUEVO o CON PLAZO DE ENTREGA */
-    AND     NOT manifiesto_nro IS NULL;
+    AND     NOT manifiesto_nro IS NULL
+    AND     orden_estado <> 0
+    AND     transportista_guia_estado <> 0;
     """
 
     # Connect to the source database

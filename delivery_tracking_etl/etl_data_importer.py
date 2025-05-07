@@ -22,12 +22,17 @@ def extract_data_from_source_table():
     query = """
     SELECT DISTINCT
 	orden.id AS orden_id,
+    orden.fl_estado AS orden_estado, -- NEWFIELD
 	orden.fecha AS orden_fecha ,
 	CONCAT(orden.serie, "-", orden.numero) AS orden_servicio,
 
+    GuiaTransp.id as transportista_guia_id, -- NEWFIELD
+    GuiaTransp.fl_estado AS transportista_guia_estado, -- NEWFIELD
 	CONCAT(GuiaTransp.serie, "-", GuiaTransp.numero) AS transportista_guia,
 
+    Manif.id AS manifiesto_id, -- NEWFIELD
 	CONCAT(Manif.serie, "-", Manif.numero) AS manifiesto_nro,
+    Manif.fl_estado AS manifiesto_estado, -- NEWFIELD
 	Manif.fecha_sistema AS manifiesto_fecha,
 
 	LugarOri.nombre AS orden_origen,
@@ -88,9 +93,9 @@ def extract_data_from_source_table():
 	LEFT JOIN desembarque Desembarque ON Desembarque.id = GuiaTransp.id_desembarque
 
 	LEFT JOIN orden_pago OrdenPago ON OrdenPago.id_orden = GuiaTranspOrden.id_orden
-    WHERE TipoEntrega.id = 2 -- DOMICILIO
-    AND orden.fecha >= %s AND orden.fecha <= %s
-    AND NOT GuiaTransp.id IS NULL;
+    WHERE
+    TipoEntrega.id = 2 -- DOMICILIO
+    AND orden.fecha >= %s AND orden.fecha <= %s;
     """
 
     # Connect to the source database
@@ -126,6 +131,269 @@ def extract_data_from_source_table():
 ### END EXTRACT_DATA_FROM_SOURCE_TABLE ###
 
 def dump_data_into_target_table(data, recordCount):
+    """
+    Inserta o actualiza registros en la tabla seguimiento_documento.
+
+    Args:
+        data (list): Lista de diccionarios con los datos a insertar/actualizar
+        recordCount (int): Cantidad de registros en data
+
+    Returns:
+        dict: Estadísticas de las operaciones realizadas
+    """
+    logger.printInfo(f"Starting dump of {recordCount} records into target table")
+
+    if not data or recordCount == 0:
+        logger.printWarning("No data to process")
+        return {'inserted': 0, 'updated': 0, 'errors': 0}
+
+    # Connect to target database
+    logger.printInfo("Connecting to target database...")
+    connection = mysql.connector.connect(**TRGT_DB_CONNECTION_CONFIG)
+    cursor = connection.cursor()
+
+    stats = {'inserted': 0, 'updated': 0, 'errors': 0}
+
+    try:
+        logger.printInfo("Processing data...")
+        for record in data:
+            # Getting the values for the unique key
+            orden_id_value = record['orden_id']
+            transportista_guia_value = record['transportista_guia']
+
+            # UNIQUE KEY: orden_id, transportista_guia
+            common_params = (
+                orden_id_value,
+                record['orden_estado'],
+                record['orden_fecha'],
+                record['orden_servicio'],
+                record['transportista_guia_id'],
+                record['transportista_guia_estado'],
+                transportista_guia_value,
+                record['manifiesto_id'],
+                record['manifiesto_nro'],
+                record['manifiesto_estado'],
+                record['manifiesto_fecha'],
+                record['orden_origen'],
+                record['remitente_razonsocial'],
+                record['remitente_email1'],
+                record['remitente_emails2'],
+                record['remitente_nrodoc'],
+                record['remitente_tipodoc'],
+                record['remitente_guia'],
+                record['orden_destino'],
+                record['destinatario_razonsocial'],
+                record['destinatario_email1'],
+                record['destinatario_emails2'],
+                record['destinatario_nrodoc'],
+                record['destinatario_tipodoc'],
+                record['orden_puntoentrega'],
+                record['orden_direccionentrega'],
+                record['orden_totalcantidad'],
+                record['orden_totalpeso'],
+                record['orden_totalimporte'],
+                record['vehiculo_conductor'],
+                record['vehiculo_placa'],
+                record['desembarque_nro'],
+                record['desembarque_fecha'],
+                record['orden_flagentregado'],
+                record['orden_fechaentregado'],
+                record['orden_estadopago'],
+                record['ordenpago_forma'],
+                record['ordenpago_cobrador'],
+                record['factura_nro'],
+                record['factura_monto'],
+                record['etl_utcdt_update']
+            )
+
+            # Primero intentamos actualizar asumiendo la Guía del transportista en NULL
+            update_base_query = """
+            UPDATE seguimiento_documento
+            SET orden_id = %s,
+                orden_estado = %s,
+                orden_fecha = %s,
+                orden_servicio = %s,
+                transportista_guia_id = %s,
+                transportista_guia_estado = %s,
+                transportista_guia = %s,
+                manifiesto_id = %s,
+                manifiesto_nro = %s,
+                manifiesto_estado = %s,
+                manifiesto_fecha = %s,
+                orden_origen = %s,
+                remitente_razonsocial = %s,
+                remitente_email1 = %s,
+                remitente_emails2 = %s,
+                remitente_nrodoc = %s,
+                remitente_tipodoc = %s,
+                remitente_guia = %s,
+                orden_destino = %s,
+                destinatario_razonsocial = %s,
+                destinatario_email1 = %s,
+                destinatario_emails2 = %s,
+                destinatario_nrodoc = %s,
+                destinatario_tipodoc = %s,
+                orden_puntoentrega = %s,
+                orden_direccionentrega = %s,
+                orden_totalcantidad = %s,
+                orden_totalpeso = %s,
+                orden_totalimporte = %s,
+                vehiculo_conductor = %s,
+                vehiculo_placa = %s,
+                desembarque_nro = %s,
+                desembarque_fecha = %s,
+                orden_flagentregado = %s,
+                orden_fechaentregado = %s,
+                orden_estadopago = %s,
+                ordenpago_forma = %s,
+                ordenpago_cobrador = %s,
+                factura_nro = %s,
+                factura_monto = %s,
+                etl_utcdt_update = %s
+            WHERE   orden_id = %s
+            """
+
+            # Parámetros para la actualización (todos los campos + las condiciones)
+            eval_params_1 = common_params + (
+                orden_id_value,
+                transportista_guia_value
+            )
+            update_query_1 = update_base_query + " AND transportista_guia = %s;"
+            try:
+                # Evaluar la actualización de la OS asumiendo que la Guía del transportista NO es NULL
+                cursor.execute(update_query_1, eval_params_1)
+                # Verificar si se actualizó algún registro
+                if cursor.rowcount > 0:
+                    connection.commit()
+                    logger.printInfo(f"Record with KEY({orden_id_value} | {transportista_guia_value}) updated successfully using method #1.")
+                    stats['updated'] += 1
+                    continue
+            except mysql.connector.Error as e:
+                logger.printError(f"MySql error UPDATING record with KEY({orden_id_value} | {transportista_guia_value}): {str(e)} using method #1")
+                logger.printException(e)
+                stats['errors'] += 1
+                continue
+            except Exception as e:
+                logger.printError(f"Unexpected error UPDATING record with KEY({orden_id_value} | {transportista_guia_value}): {str(e)} using method #1")
+                logger.printException(e)
+                stats['errors'] += 1
+                continue
+            ### END TRY-EXCEPT ###
+
+            # Parámetros para la actualización (todos los campos + las condiciones)
+            eval_params_2 = common_params + (
+                orden_id_value,
+                None
+            )
+            update_query_2 = update_base_query + " AND transportista_guia IS %s;"
+            try:
+                # Evaluar la actualización de la OS asumiendo que la Guía del transportista es NULL
+                cursor.execute(update_query_2, eval_params_2)
+                # Verificar si se actualizó algún registro
+                if cursor.rowcount > 0:
+                    connection.commit()
+                    logger.printInfo(f"Record with KEY({orden_id_value} | {None}) updated successfully using method #2.")
+                    stats['updated'] += 1
+                    continue
+                ### END IF ###
+            except mysql.connector.Error as e:
+                logger.printError(f"MySql error UPDATING record with KEY({orden_id_value} | {None}): {str(e)} using method #2")
+                logger.printException(e)
+                stats['errors'] += 1
+                continue
+            except Exception as e:
+                logger.printError(f"Unexpected error UPDATING record with KEY({orden_id_value} | {None}): {str(e)} using method #2")
+                logger.printException(e)
+                stats['errors'] += 1
+                continue
+            ### END TRY-EXCEPT ###
+
+            logger.printInfo(f"Record with KEY({orden_id_value} | {transportista_guia_value}) NOT UPDATED. Proceeding to INSERT.")
+
+            # Si no se actualizó nada, procedemos con la inserción
+            insert_query = """
+            INSERT INTO seguimiento_documento (
+                orden_id,
+                orden_estado,
+                orden_fecha,
+                orden_servicio,
+                transportista_guia_id,
+                transportista_guia_estado,
+                transportista_guia,
+                manifiesto_id,
+                manifiesto_nro,
+                manifiesto_estado,
+                manifiesto_fecha,
+                orden_origen,
+                remitente_razonsocial,
+                remitente_email1,
+                remitente_emails2,
+                remitente_nrodoc,
+                remitente_tipodoc,
+                remitente_guia,
+                orden_destino,
+                destinatario_razonsocial,
+                destinatario_email1,
+                destinatario_emails2,
+                destinatario_nrodoc,
+                destinatario_tipodoc,
+                orden_puntoentrega,
+                orden_direccionentrega,
+                orden_totalcantidad,
+                orden_totalpeso,
+                orden_totalimporte,
+                vehiculo_conductor,
+                vehiculo_placa,
+                desembarque_nro,
+                desembarque_fecha,
+                orden_flagentregado,
+                orden_fechaentregado,
+                orden_estadopago,
+                ordenpago_forma,
+                ordenpago_cobrador,
+                factura_nro,
+                factura_monto,
+                etl_utcdt_update
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            try:
+                # Parámetros para la inserción (todos los campos)
+                cursor.execute(insert_query, common_params)
+                connection.commit()
+                stats['inserted'] += 1
+                logger.printInfo(f"Record with KEY({orden_id_value} | {transportista_guia_value}) inserted successfully.")
+            except mysql.connector.Error as e:
+                logger.printError(f"MySql error INSERTING record with KEY({orden_id_value} | {transportista_guia_value}): {str(e)}")
+                logger.printException(e)
+                stats['errors'] += 1
+                continue
+            except Exception as e:
+                logger.printError(f"Unexpected error INSERTING record with KEY({orden_id_value} | {transportista_guia_value}): {str(e)}")
+                logger.printException(e)
+                stats['errors'] += 1
+                continue
+            ### END TRY-EXCEPT ###
+        ### END FOR LOOP ###
+
+        logger.printInfo("Data processing completed.")
+    except Exception as e:
+        logger.printError("Unexpected error during data processing!")
+        connection.rollback()
+        raise
+    finally:
+        cursor.close()
+        connection.close()
+        logger.printInfo("Connection closed.")
+
+    logger.printInfo(f"Dump completed. Stats: {stats}")
+    return stats
+### END DUMP_DATA_INTO_TARGET_TABLE ###
+
+def dump_data_into_target_table_old(data, recordCount):
     # Connect to the target database
     logger.printInfo("Connecting to target database...")
     connection = mysql.connector.connect(**TRGT_DB_CONNECTION_CONFIG)
@@ -191,8 +459,9 @@ def main():
         # Step 2: Dump data into target table
         if data:
             logger.printInfo("Dumping data into target table...")
-            dump_data_into_target_table(data, recordCount)
+            stats = dump_data_into_target_table(data, recordCount)
             logger.printInfo("Data successfully dumped into target table.")
+            logger.printInfo(f"Inserted: {stats['inserted']}, Updated: {stats['updated']}, Errors: {stats['errors']}")
         else:
             logger.printInfo("No data to dump into target table.")
 
