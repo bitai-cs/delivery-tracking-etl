@@ -24,7 +24,9 @@ def extract_data():
     FROM seguimiento_documento
     WHERE   orden_fecha >= %s
             AND estado_id = 13 -- EMBARCADO HACIA DESTINO
-            AND NOT desembarque_nro IS NULL;
+            AND NOT desembarque_nro IS NULL
+            AND orden_estado <> 0
+            AND transportista_guia_estado <> 0;
     """
 
     # Connect to the source database
