@@ -103,6 +103,8 @@ def update_data(data, recordCount):
             # Actualizar campo plazoasignado_fechlimite en la tabla seguimiento_documento
             update_query = """
             UPDATE seguimiento_documento
+                plazoasignado_fechestado = NOW(),
+                plazoasignado_usuestado = 'ETL'
             SET plazoasignado_fechlimite = CASE WHEN plazoasignado_fechlimite IS NULL THEN %s ELSE plazoasignado_fechlimite END,
                 programado_fechllegada = CASE WHEN programado_fechllegada IS NULL THEN %s ELSE programado_fechllegada END,
                 entransito_fechllegada = CASE WHEN entransito_fechllegada IS NULL THEN %s ELSE entransito_fechllegada END,
