@@ -24,9 +24,9 @@ def extract_data():
     SELECT id, CAST(orden_fecha AS DATETIME) AS orden_fecha, orden_origen, orden_destino
     FROM seguimiento_documento
     WHERE orden_fecha >= %s
-    AND (plazoasignado_fechlimite IS NULL or programado_fechllegada IS NULL or entransito_fechllegada IS NULL)
-    AND orden_estado <> 0
-    AND transportista_guia_estado <> 0;
+    AND (plazoasignado_fechlimite IS NULL OR programado_fechllegada IS NULL OR entransito_fechllegada IS NULL)
+    AND (orden_estado IS NOT NULL AND orden_estado <> 0)
+    AND (transportista_guia_estado IS NULL OR transportista_guia_estado <> 0);
     """
 
     # Connect to the source database
