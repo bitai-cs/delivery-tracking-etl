@@ -92,27 +92,27 @@ def update_data(data, recordCount):
             tiempo_entrega_dias = tiempo_entrega[0]
             print(f"Se encontró tiempoentrega_dias para {orden_destino}: {tiempo_entrega_dias}")
 
-            # Asignar la fecha límite de entrega en base a la fecha de orden y el tiempo de entrega
-            plazoasignado_fechlimite = orden_fecha + timedelta(days=tiempo_entrega_dias) + timedelta(hours=23) + timedelta(minutes=59) + timedelta(seconds=59)
-            print(f"Valor para plazoasignado_fechlimite: {plazoasignado_fechlimite}")
-            programado_fechllegada = orden_fecha + timedelta(days=tiempo_entrega_dias) + timedelta(hours=23) + timedelta(minutes=59) + timedelta(seconds=59)
-            print(f"Valor para programado_fechllegada: {programado_fechllegada}")
-            entransito_fechllegada = orden_fecha + timedelta(days=tiempo_entrega_dias) + timedelta(hours=23) + timedelta(minutes=59) + timedelta(seconds=59)
-            print(f"Valor para entransito_fechllegada: {entransito_fechllegada}")
+            # Calcular la fecha límite de entrega
+            fecha_limite = orden_fecha + timedelta(days=tiempo_entrega_dias) + timedelta(hours=23) + timedelta(minutes=59) + timedelta(seconds=59)
+            # Validación para domingo (weekday() devuelve 6 para domingo)
+            if fecha_limite.weekday() == 6:
+                print(f"Fecha límite de entrega {fecha_limite} es DOMINGO, se agregará un día más.")
+                fecha_limite += timedelta(days=1)
+            print(f"Valor para fecha limite de entrega: {fecha_limite}")
 
             # Actualizar campo plazoasignado_fechlimite en la tabla seguimiento_documento
             update_query = """
             UPDATE seguimiento_documento
-                plazoasignado_fechestado = NOW(),
-                plazoasignado_usuestado = 'ETL'
-            SET plazoasignado_fechlimite = CASE WHEN plazoasignado_fechlimite IS NULL THEN %s ELSE plazoasignado_fechlimite END,
+            SET plazoasignado_fechestado = NOW(),
+                plazoasignado_usuestado = 'ETL',
+                plazoasignado_fechlimite = CASE WHEN plazoasignado_fechlimite IS NULL THEN %s ELSE plazoasignado_fechlimite END,
                 programado_fechllegada = CASE WHEN programado_fechllegada IS NULL THEN %s ELSE programado_fechllegada END,
                 entransito_fechllegada = CASE WHEN entransito_fechllegada IS NULL THEN %s ELSE entransito_fechllegada END,
                 estado_id = CASE WHEN estado_id = 0 THEN 10 ELSE estado_id END /* PLAZO DE ENTREGA ASIGNADO */
             WHERE id = %s;
             """
             print(f"Evaluar actualizacion plazoasignado_fechlimite de registro: {id}...")
-            cursor.execute(update_query, (plazoasignado_fechlimite, plazoasignado_fechlimite, plazoasignado_fechlimite, id))
+            cursor.execute(update_query, (fecha_limite, fecha_limite, fecha_limite, id))
             # Verificar si se actualizó el campo
             if cursor.rowcount > 0:
                 print("Commiting the transaction...")
